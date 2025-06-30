@@ -34,8 +34,27 @@ torii --config ./torii_dev.toml
 5. Run this example:
 
 ```bash
+# Original plugin with external Tokio runtime
 cargo run --example intro
+
+# OR use the new v2 plugin with native Bevy tasks
+cargo run --example intro_v2
 ```
+
+## Plugin Versions
+
+This repository contains two plugin implementations:
+
+### Original Plugin (`DojoPlugin`)
+- Uses external Tokio runtime (`TokioRuntime` resource required)
+- Full Dojo functionality (Torii + Starknet)
+- Proven and stable
+
+### V2 Plugin (`DojoPluginV2`) 
+- Uses native Bevy task system (no external Tokio dependency)
+- Same functionality as original but more efficient
+- Better integration with Bevy's async systems
+- Recommended for new projects
 
 ## How to play
 

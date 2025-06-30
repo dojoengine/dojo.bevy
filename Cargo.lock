@@ -2657,13 +2657,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bevy",
+ "crossbeam-channel",
  "dojo-types",
  "futures",
  "reqwest",
  "serde",
  "serde_json",
  "starknet 0.13.0",
- "tokio",
  "torii-grpc-client",
  "url",
 ]
