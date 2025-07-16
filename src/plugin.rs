@@ -77,6 +77,11 @@ pub struct StarknetConnection {
     >,
 }
 
+type SubscriptionMessage = (Felt, Vec<Struct>);
+
+type SubscriptionSender = Option<Arc<Mutex<Sender<SubscriptionMessage>>>>;
+type SubscriptionReceiver = Option<Arc<Mutex<Receiver<SubscriptionMessage>>>>;
+
 /// Torii connection state.
 #[derive(Default)]
 pub struct ToriiConnection {
@@ -85,8 +90,8 @@ pub struct ToriiConnection {
     pub pending_retrieve_entities:
         VecDeque<JoinHandle<Result<RetrieveEntitiesResponse, torii_grpc_client::Error>>>,
     pub subscriptions: Arc<Mutex<HashMap<String, JoinHandle<()>>>>,
-    pub subscription_sender: Option<Arc<Mutex<Sender<(Felt, Vec<Struct>)>>>>,
-    pub subscription_receiver: Option<Arc<Mutex<Receiver<(Felt, Vec<Struct>)>>>>,
+    pub subscription_sender: SubscriptionSender,
+    pub subscription_receiver: SubscriptionReceiver,
 }
 
 /// Dojo resource that embeds Starknet and Torii connection.
@@ -228,7 +233,7 @@ fn check_torii_task(
     mut ev_initialized: EventWriter<DojoInitializedEvent>,
 ) {
     if let Some(task) = &mut dojo.torii.init_task {
-        if let Ok(Ok(client)) = tokio.runtime.block_on(async { task.await }) {
+        if let Ok(Ok(client)) = tokio.runtime.block_on(task) {
             info!("Torii client initialized.");
             dojo.torii.client = Some(Arc::new(Mutex::new(client)));
             dojo.torii.init_task = None;
@@ -238,7 +243,7 @@ fn check_torii_task(
 
     if !dojo.torii.pending_retrieve_entities.is_empty() {
         if let Some(task) = dojo.torii.pending_retrieve_entities.pop_front() {
-            if let Ok(Ok(response)) = tokio.runtime.block_on(async { task.await }) {
+            if let Ok(Ok(response)) = tokio.runtime.block_on(task) {
                 debug!("Retrieve entities response: {:?}", response);
                 for e in response.entities {
                     ev_retrieve_entities.write(DojoEntityUpdated {
@@ -270,7 +275,7 @@ fn check_torii_task(
 /// that have been queued to be sent to the blockchain.
 fn check_sn_task(tokio: Res<TokioRuntime>, mut dojo: ResMut<DojoResource>) {
     if let Some(task) = &mut dojo.sn.connecting_task {
-        if let Ok(account) = tokio.runtime.block_on(async { task.await }) {
+        if let Ok(account) = tokio.runtime.block_on(task) {
             info!("Connected to Starknet.");
             dojo.sn.account = Some(account);
             dojo.sn.connecting_task = None;
@@ -279,7 +284,7 @@ fn check_sn_task(tokio: Res<TokioRuntime>, mut dojo: ResMut<DojoResource>) {
 
     if !dojo.sn.pending_txs.is_empty() && dojo.sn.account.is_some() {
         if let Some(task) = dojo.sn.pending_txs.pop_front() {
-            match tokio.runtime.block_on(async { task.await }) {
+            match tokio.runtime.block_on(task) {
                 Ok(tx_result) => match tx_result {
                     Ok(result) => {
                         info!("Transaction completed: {:#x}", result.transaction_hash);
